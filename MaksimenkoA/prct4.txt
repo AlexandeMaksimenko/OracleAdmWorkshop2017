@@ -1,0 +1,111 @@
+/* проверим включен ли аудит */
+select name,value from v$parameter where name like 'audit%';
+
+|вывод команды|
+---------------------------------------------------------
+|audit_sys_oprations 	| FALSE				|
+|audit_file_dest	|/u01/app/oracle/admin/MAX/adump|
+|audit_syslog_level	|(null)				|
+|audit_trail		| DB_EXTENDED			|
+---------------------------------------------------------
+
+
+/* Видим что audit_trail = db, если не видим то выполняем эту команду  
+ALTER SYSTEM SET audit_trail='db' SCOPE=SPFILE; 
+shutdown;
+startup mount;
+
+проверяем
+select name,value from v$parameter where name like 'audit%';
+
+---------------------------------------------------------
+|audit_sys_oprations 	| FALSE				|
+|audit_file_dest	|/u01/app/oracle/admin/MAX/adump|
+|audit_syslog_level	|(null)				|
+|audit_trail		| DB				|
+---------------------------------------------------------
+
+/* Проверим наличие того, что какие-нибудь привилегии или выражения уже используются для аудита */
+select * from dba_stmt_audit_opts union select * from dba_priv_audit_opts;
+
+---------------------------------------------------------
+audit create any table by user_max;
+audit create role by user_max;
+audit create view by user_max;
+audit create procedure by user_max;
+audit CREATE LIBRARY by user_max;
+
+audit alter any table by user_max;
+audit alter any role by user_max;
+audit alter any procedure by user_max;
+---------------------------------------------------------
+|	USER_MAX	|(null)	|ALTER ANY ROLE 	| BY ACCESS | BY ACCESS |
+|	USER_MAX	|(null)	|ALTER ANY PROCEDURE	| BY ACCESS | BY ACCESS |
+|	USER_MAX	|(null)	|ALTER ANY TABLE	| BY ACCESS | BY ACCESS |
+|	USER_MAX	|(null)	|CREATE ANY LIBRARY	| BY ACCESS | BY ACCESS |
+|	USER_MAX	|(null)	|CREATE ANY PROCEDURE	| BY ACCESS | BY ACCESS |
+|	USER_MAX	|(null)	|ALTER ANY ROLE 	| BY ACCESS | BY ACCESS |
+|       ........	|...	| ...			| ...	    | 	...
+
+
+/* Генерируем сообщения в журнале аудита, путём создания 10000 таблиц от пользователя user_max*/
+
+
+begin
+DBMS_FGA.ADD_POLICY(object_schema => USER_MAX
+object_name => 'table_test',
+policy_name => 'chk_hr_emp',
+audit_condition => '',
+audit_column => '',
+statement_types => 'insert,update,delete,select',
+enable => TRUE)
+;
+end;
+ 
+выполним обычный селект
+
+ 
+select timestamp, 
+   db_user,
+   os_user,
+   object_schema,
+   object_name,
+   sql_text
+from dba_fga_audit_trail;
+
+
+удалим политику
+
+begin
+DBMS_FGA.DROP_POLICY(object_schema => USER_MAX
+object_name => 'table_test',
+policy_name => 'chk_hr_emp')
+;
+end;
+/
+
+select * from test_table_1;
+
+AUDIT CREATE ANY TABLE, ALTER ANY TABLE, CREATE ANY TABLE,  DROP ANY TABLE BY user_max;
+
+AUDIT UPDATE TABLE WHENEVER NOT SUCCESSFUL BY user_max;
+SELECT user_name, audit_option, success, failure  FROM dba_stmt_audit_opts;
+
+select name,value from v$parameter where name like 'audit%';
+
+insert into test_table_1 values (11111, 'srtwsrte');
+select * from test_table_1;
+
+
+a
+audit delete any table by user_max WHENEVER NOT SUCCESSFUL;
+
+b
+select * from dba_users;
+audit table by user_max ;
+select *from dba_audit_trail where username='user_max';
+truncate table sys.aud$;
+select * from dba_common_audit_trail where db_user='user_max ';
+show spPARAMETERs aud
+SELECT audit_option FROM dba_stmt_audit_opts;
+ALTER SYSTEM SET audit_sys_operations=true SCOPE=SPFILE;
